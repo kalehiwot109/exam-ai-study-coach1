@@ -48,16 +48,7 @@ type QBFrame = 'browse' | 'smart';
 
 // ─── Subject data ─────────────────────────────────────────────────────────────
 
-const subjects = [
-  { name: 'Physics',     emoji: '⚡', total: 412 },
-  { name: 'Chemistry',   emoji: '🧪', total: 388 },
-  { name: 'Biology',     emoji: '🧬', total: 356 },
-  { name: 'Mathematics', emoji: '📐', total: 520 },
-  { name: 'English',     emoji: '📖', total: 298 },
-  { name: 'History',     emoji: '🏛️', total: 244 },
-  { name: 'Geography',   emoji: '🌍', total: 216 },
-  { name: 'Civics',      emoji: '⚖️', total: 180 },
-];
+const { subjects } = useQuestions();
 
 const years = [
   { label: 'Mixed Years', sub: 'All years combined', count: 412 },

@@ -12,14 +12,16 @@ import {
 } from "lucide-react";
 
 import type { OnboardingData } from "../onboarding/Onboarding";
-import type { SignUpData } from "../auth/SignUp";
+
 interface ProfileProps {
   onboardingData: OnboardingData;
-  user: SignUpData | null;
+  userName: string;
+  userEmail: string;
 }
 export function Profile({
   onboardingData,
-  user,
+  userName,
+  userEmail,
 }: ProfileProps) {
   return (
     <main className="p-4 lg:p-8 max-w-5xl">
@@ -54,12 +56,12 @@ export function Profile({
 
             <div className="flex-1">
               <h2 className="text-xl font-bold text-gray-900">
-                {user?.fullName ?? "Student"}
+              {userName}
               </h2>
 
               <div className="flex items-center gap-2 mt-2 text-sm text-gray-500">
                 <Mail className="w-4 h-4" strokeWidth={1.75} />
-                {user?.email ?? "No email available"}
+                {userEmail || "No email available"}
               </div>
 
               <p className="text-sm text-gray-500 mt-2">

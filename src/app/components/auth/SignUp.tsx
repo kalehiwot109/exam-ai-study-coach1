@@ -10,6 +10,7 @@ import {
 export interface SignUpData {
   fullName: string;
   email: string;
+  password: string;
 }
 
 interface SignUpProps {
@@ -59,6 +60,7 @@ export function SignUp({ onSignUp, onGoToLogin }: SignUpProps) {
     onSignUp({
       fullName: fullName.trim(),
       email: email.trim(),
+      password,
     });
   }
 

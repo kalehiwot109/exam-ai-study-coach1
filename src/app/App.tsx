@@ -8,8 +8,8 @@ import {
   Onboarding,
   type OnboardingData,
 } from "./components/onboarding/Onboarding";
+import { useAuth } from "../hooks/useAuth";
 import { Achievements } from "./components/achievements/Achievements";
-
 import { MetricCard } from "./components/dashboard/MetricCard";
 import { AnalyticsChart } from "./components/dashboard/AnalyticsChart";
 import { RecentActivity } from "./components/dashboard/RecentActivity";
@@ -21,10 +21,7 @@ import { Profile } from "./components/profile/Profile";
 import { StudyCoach } from "./components/studycoach/StudyCoach";
 import { Settings } from "./components/settings/Settings";
 import { Login, type LoginData } from "./components/auth/Login";
-import {
-  SignUp,
-  type SignUpData,
-} from "./components/auth/SignUp";
+import { SignUp } from "./components/auth/SignUp";
 import { ForgotPassword } from "./components/auth/ForgotPassword";
 
 import {
@@ -96,25 +93,23 @@ export default function App() {
     return "system";
   });
 
-  const [onboardingData, setOnboardingData] =
-    useState<OnboardingData | null>(null);
+  const {
+    currentUser,
+    onboardingData,
+    loading: authLoading,
+    createAccount,
+    login,
+    logout,
+    completeOnboarding,
+  } = useAuth();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loginError, setLoginError] = useState("");
-  const [authScreen, setAuthScreen] =
-    useState<AuthScreen>("onboarding");
-  const [user, setUser] = useState<SignUpData | null>(() => {
-    const savedUser = localStorage.getItem("studystreak-user");
+  const [authScreen, setAuthScreen] = useState<AuthScreen>(() => {
+    const hasStartedStudyStreak =
+      localStorage.getItem("studystreak-has-started") === "true";
 
-    if (!savedUser) {
-      return null;
-    }
-
-    try {
-      return JSON.parse(savedUser) as SignUpData;
-    } catch {
-      return null;
-    }
+    return hasStartedStudyStreak ? "login" : "onboarding";
   });
 
   const [activePage, setActivePage] = useState<Page>(
@@ -126,8 +121,6 @@ export default function App() {
     const systemTheme = window.matchMedia(
       "(prefers-color-scheme: dark)",
     );
-
-    // Keep the rest of your existing useEffect exactly as it is.
 
     function applyTheme() {
       const shouldUseDarkMode =
@@ -147,15 +140,53 @@ export default function App() {
     };
   }, [theme]);
 
+  useEffect(() => {
+    if (authLoading) {
+      return;
+    }
+
+    if (currentUser) {
+      setAuthScreen("app");
+      return;
+    }
+
+    if (authScreen === "app") {
+      setAuthScreen("login");
+    }
+  }, [authLoading, currentUser, authScreen]);
+
+  async function handleLogout() {
+    const { error } = await logout();
+
+    if (error) {
+      console.error("Logout failed:", error.message);
+      return;
+    }
+
+    setAuthScreen("login");
+  }
+
   function handleNavigate(page: Page) {
     setActivePage(page);
     setSidebarOpen(false);
   }
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Loading StudyStreak...</p>
+      </div>
+    );
+  }
+  
   if (authScreen === "onboarding") {
     return (
       <Onboarding
-        onComplete={(data) => {
-          setOnboardingData(data);
+        onComplete={() => {
+          localStorage.setItem(
+            "studystreak-has-started",
+            "true",
+          );
+  
           setAuthScreen("signup");
         }}
       />
@@ -165,13 +196,24 @@ export default function App() {
   if (authScreen === "signup") {
     return (
       <SignUp
-        onSignUp={(data) => {
-          setUser(data);
-          localStorage.setItem(
-            "studystreak-user",
-            JSON.stringify(data),
+        onSignUp={async (data) => {
+          const { data: signUpResult, error } = await createAccount(
+            data.email,
+            data.password,
+            data.fullName,
           );
-          setAuthScreen("app");
+
+          if (error) {
+            alert(error.message);
+            return;
+          }
+  
+          if (signUpResult.session) {
+            await logout();
+          }
+
+          alert("Account created successfully. Please log in.");
+          setAuthScreen("login");
         }}
         onGoToLogin={() => setAuthScreen("login")}
       />
@@ -182,32 +224,19 @@ export default function App() {
     return (
       <Login
         error={loginError}
-        onLogin={(data: LoginData) => {
+        onLogin={async (data: LoginData) => {
           setLoginError("");
-
-          if (!user) {
-            setLoginError(
-              "No account was found. Please create an account first.",
-            );
-            return;
-          }
-
-          if (
-            data.email.toLowerCase() !==
-            user.email.toLowerCase()
-          ) {
-            setLoginError(
-              "The email address does not match your saved account.",
-            );
-            return;
-          }
-
-          localStorage.setItem(
-            "studystreak-authenticated",
-            "true",
+  
+          const { error } = await login(
+            data.email,
+            data.password,
           );
-
-          setAuthScreen("app");
+  
+          if (error) {
+            setLoginError(error.message);
+            return;
+          }
+  
         }}
         onGoToSignUp={() => {
           setLoginError("");
@@ -230,7 +259,23 @@ export default function App() {
   }
 
   if (!onboardingData) {
-    return null;
+    return (
+      <Onboarding
+        onComplete={async (data) => {
+          const { error } = await completeOnboarding(data);
+
+          if (error) {
+            console.error(
+              "Failed to save onboarding data:",
+              error.message,
+            );
+            return;
+          }
+
+          setAuthScreen("app");
+        }}
+      />
+    );
   }
 
   return (
@@ -245,7 +290,12 @@ export default function App() {
       <div className="lg:pl-64">
         {/* Hide header during Practice to keep it distraction-free */}
         {activePage !== "practice" && (
-          <Header onMenuClick={() => setSidebarOpen(true)} />
+          <Header
+            onMenuClick={() => setSidebarOpen(true)}
+            onLogout={handleLogout}
+            userName={currentUser?.fullName ?? "Student"}
+            userEmail={currentUser?.email ?? ""}
+          />
         )}
 
         {activePage === "mission-control" && (
@@ -255,7 +305,7 @@ export default function App() {
                 Mission Control
               </h1>
               <p className="text-sm text-gray-500">
-                Welcome back, {user?.fullName ?? "Student"}.
+                Welcome back, {currentUser?.fullName ?? "Student"}.
                 Here's your plan for today.
               </p>
             </div>
@@ -275,7 +325,7 @@ export default function App() {
                       Good Afternoon
                     </p>
                     <h2 className="text-2xl lg:text-3xl font-bold text-white">
-                      {user?.fullName?.split(" ")[0] ??
+                      {currentUser?.fullName?.split(" ")[0] ??
                         "Student"}{" "}
                       👋
                     </h2>
@@ -376,13 +426,23 @@ export default function App() {
         {activePage === "profile" && (
           <Profile
             onboardingData={onboardingData}
-            user={user}
+            userName={currentUser?.fullName ?? "Student"}
+            userEmail={currentUser?.email ?? ""}
           />
         )}
         {activePage === "settings" && (
           <Settings
             onboardingData={onboardingData}
-            onUpdateOnboardingData={setOnboardingData}
+            onUpdateOnboardingData={(data) => {
+              void completeOnboarding(data).then(({ error }) => {
+                if (error) {
+                  console.error(
+                    "Failed to update study preferences:",
+                    error.message,
+                  );
+                }
+              });
+            }}
             theme={theme}
             onThemeChange={setTheme}
           />
